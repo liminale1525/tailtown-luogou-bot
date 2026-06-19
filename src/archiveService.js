@@ -9,6 +9,40 @@ const FORUM_CHANNEL_TYPES = new Set([
 
 const AUTO_ARCHIVE_BATCH_LIMIT = 100;
 
+function formatArchiveLogTime(date = new Date()) {
+  return date.toLocaleString("zh-CN", {
+    hour12: false,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function formatArchiveLogTitle(date = new Date()) {
+  const stamp = date.toISOString()
+    .replace(/[-:TZ.]/g, "")
+    .slice(0, 12);
+  return `📋 本次归档 - ${stamp}`;
+}
+
+function buildAutoArchiveLog(count, archiveDays, archivedAt = new Date()) {
+  return {
+    embeds: [
+      {
+        color: 0x5b9bd5,
+        title: formatArchiveLogTitle(archivedAt),
+        description: [
+          `归档数量：${count} 个帖子`,
+          `归档规则：${archiveDays} 天未活跃`,
+          `归档时间：${formatArchiveLogTime(archivedAt)}`
+        ].join("\n")
+      }
+    ]
+  };
+}
+
 function daysAgo(date) {
   return (Date.now() - date.getTime()) / (24 * 60 * 60 * 1000);
 }
@@ -205,17 +239,18 @@ export async function runAutoArchiveCheck(guild, config) {
     results.push(item.thread);
   }
 
+  const archivedAt = new Date();
+
   await updateGuildConfig(guild.id, (current) => ({
     ...current,
-    lastAutoArchiveAt: new Date().toISOString()
+    lastAutoArchiveAt: archivedAt.toISOString()
   }));
 
-  await sendArchiveLog(guild, config, [
-    "**自动归档完成**",
-    `规则：超过 ${config.archiveDays} 天未活跃`,
-    `检查间隔：${config.checkIntervalMinutes ?? 120} 分钟`,
-    `已归档：${results.length} 个帖子`
-  ].join("\n")).catch(() => null);
+  await sendArchiveLog(
+    guild,
+    config,
+    buildAutoArchiveLog(results.length, config.archiveDays, archivedAt)
+  ).catch(() => null);
 
   return {
     archived: true,

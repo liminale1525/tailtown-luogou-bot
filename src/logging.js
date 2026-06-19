@@ -16,12 +16,12 @@ export async function findArchiveLogChannel(guild, configuredChannelId) {
   )) ?? null;
 }
 
-export async function sendArchiveLog(guild, config, message) {
+export async function sendArchiveLog(guild, config, payload) {
   const channel = await findArchiveLogChannel(guild, config.logChannelId);
   if (!channel) {
     return false;
   }
 
-  await channel.send(message);
+  await channel.send(payload);
   return true;
 }
