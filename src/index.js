@@ -40,7 +40,8 @@ const INTERVAL_OPTIONS = [
   { label: "6小时", value: 360 },
   { label: "3小时", value: 180 },
   { label: "1小时", value: 60 },
-  { label: "半小时", value: 30 }
+  { label: "半小时", value: 30 },
+  { label: "3分钟（测试）", value: 3 }
 ];
 
 function formatDate(value) {
