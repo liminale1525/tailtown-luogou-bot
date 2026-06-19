@@ -41,7 +41,14 @@ function formatArchiveLogTitle(date = new Date()) {
   return `📋 本次归档 - ${stamp}`;
 }
 
-function buildAutoArchiveLog(count, archiveDays, archivedAt = new Date()) {
+function buildAutoArchiveLog(archivedThreads, archiveDays, archivedAt = new Date()) {
+  const count = archivedThreads.length;
+  const visibleThreads = archivedThreads.slice(0, 20);
+  const hiddenCount = Math.max(0, archivedThreads.length - visibleThreads.length);
+  const threadList = visibleThreads.length > 0
+    ? visibleThreads.map((thread, index) => `${index + 1}. <#${thread.id}>`).join("\n")
+    : "无";
+
   return {
     embeds: [
       {
@@ -50,10 +57,17 @@ function buildAutoArchiveLog(count, archiveDays, archivedAt = new Date()) {
         description: [
           `归档数量：${count} 个帖子`,
           `归档规则：${archiveDays} 天未活跃`,
-          `归档时间：${formatArchiveLogTime(archivedAt)}`
-        ].join("\n")
+          `归档时间：${formatArchiveLogTime(archivedAt)}`,
+          "",
+          "**帖子清单**",
+          threadList,
+          hiddenCount > 0 ? `还有 ${hiddenCount} 个帖子未显示。` : null
+        ].filter(Boolean).join("\n")
       }
-    ]
+    ],
+    allowedMentions: {
+      parse: []
+    }
   };
 }
 
@@ -314,7 +328,7 @@ export async function runAutoArchiveCheck(guild, config) {
   await sendArchiveLog(
     guild,
     config,
-    buildAutoArchiveLog(results.length, config.archiveDays, archivedAt)
+    buildAutoArchiveLog(results, config.archiveDays, archivedAt)
   ).catch(() => null);
 
   console.info(
