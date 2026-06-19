@@ -383,7 +383,7 @@ async function runAutoChecks() {
 
 client.once(Events.ClientReady, async () => {
   console.log(`已登录：${client.user.tag}`);
-  console.log("归档面板版本：single-panel-2026-06-19-10");
+  console.log("归档面板版本：single-panel-2026-06-19-11");
   runAutoChecks().catch((error) => console.error("[initial-auto-check]", error));
   setInterval(runAutoChecks, CHECK_INTERVAL_MS);
 });

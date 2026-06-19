@@ -1,4 +1,4 @@
-export const CHECK_INTERVAL_MS = 30 * 60 * 1000;
+export const CHECK_INTERVAL_MS = 60 * 1000;
 
 export const DEFAULT_GUILD_CONFIG = {
   autoArchiveEnabled: false,
