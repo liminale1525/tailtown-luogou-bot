@@ -183,7 +183,9 @@ export async function runAutoArchiveCheck(guild, config) {
 
   await updateGuildConfig(guild.id, (current) => ({
     ...current,
-    lastAutoCheckAt: new Date().toISOString()
+    lastAutoCheckAt: new Date().toISOString(),
+    lastActiveThreadCount: activeThreads.length,
+    lastActiveThreadCountAt: new Date().toISOString()
   }));
 
   const archivable = filterArchivableThreads(activeThreads, config, config.archiveDays)

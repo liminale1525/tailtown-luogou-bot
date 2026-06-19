@@ -124,6 +124,20 @@ async function normalizeConfig(guildId) {
   return config;
 }
 
+async function refreshActiveThreadCount(guild) {
+  const config = await normalizeConfig(guild.id);
+  const forumChannels = await getManagedForumChannels(guild, config);
+  const activeThreads = await getActiveThreadsForForums(forumChannels);
+
+  await updateGuildConfig(guild.id, (current) => ({
+    ...current,
+    lastActiveThreadCount: activeThreads.length,
+    lastActiveThreadCountAt: new Date().toISOString()
+  }));
+
+  return activeThreads.length;
+}
+
 async function getWhitelistEntries(guild, threadIds) {
   const entries = [];
 
@@ -170,13 +184,18 @@ async function buildWhitelistReply(guild, notice = null) {
   };
 }
 
-async function buildPanel(guild, notice = null) {
-  const config = await normalizeConfig(guild.id);
-  const forumChannels = await getManagedForumChannels(guild, config);
-  const activeThreads = await getActiveThreadsForForums(forumChannels);
+async function buildPanel(guild, notice = null, options = {}) {
+  let config = await normalizeConfig(guild.id);
+  let activeThreadCount = config.lastActiveThreadCount;
+
+  if (options.refreshActiveCount) {
+    activeThreadCount = await refreshActiveThreadCount(guild);
+    config = await normalizeConfig(guild.id);
+  }
+
   const content = [
     `# 📁 自动归档处${notice ? `\n${notice}` : ""}`,
-    `活跃帖：${activeThreads.length}`,
+    `活跃帖：${activeThreadCount ?? "读取中"}`,
     `白名单：${config.whitelistedThreadIds.length} 个帖子`,
     `上次归档：${formatDate(config.lastAutoArchiveAt)}`
   ].join("\n");
@@ -247,7 +266,7 @@ async function handleArchiveCommand(interaction) {
     content: "# 📁 自动归档处\n正在读取状态...",
     flags: MessageFlags.Ephemeral
   });
-  const panel = await buildPanel(interaction.guild);
+  const panel = await buildPanel(interaction.guild, null, { refreshActiveCount: true });
   await interaction.editReply(panel);
 }
 
@@ -311,11 +330,12 @@ async function handleArchiveComponent(interaction) {
     return;
   }
 
-  if (interaction.customId === "archive:refresh") {
+  const refreshActiveCount = interaction.customId === "archive:refresh";
+  if (refreshActiveCount) {
     notice = "状态已刷新";
   }
 
-  const panel = await buildPanel(guild, notice);
+  const panel = await buildPanel(guild, notice, { refreshActiveCount });
   await interaction.editReply(panel);
 }
 
@@ -362,7 +382,7 @@ async function runAutoChecks() {
 
 client.once(Events.ClientReady, async () => {
   console.log(`已登录：${client.user.tag}`);
-  console.log("归档面板版本：single-panel-2026-06-19-9");
+  console.log("归档面板版本：single-panel-2026-06-19-10");
   runAutoChecks().catch((error) => console.error("[initial-auto-check]", error));
   setInterval(runAutoChecks, CHECK_INTERVAL_MS);
 });
