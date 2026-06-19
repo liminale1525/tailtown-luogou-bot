@@ -22,6 +22,7 @@ import {
 } from "./archiveService.js";
 
 const { DISCORD_TOKEN, ARCHIVE_LOG_CHANNEL_ID } = process.env;
+const DISPLAY_TIME_ZONE = process.env.TIME_ZONE ?? "Asia/Hong_Kong";
 
 if (!DISCORD_TOKEN) {
   throw new Error("请先在 .env 中填写 DISCORD_TOKEN。");
@@ -49,7 +50,10 @@ function formatDate(value) {
     return "暂无";
   }
 
-  return new Date(value).toLocaleString("zh-CN", { hour12: false });
+  return new Date(value).toLocaleString("zh-CN", {
+    hour12: false,
+    timeZone: DISPLAY_TIME_ZONE
+  });
 }
 
 function formatInterval(minutes) {
@@ -383,7 +387,7 @@ async function runAutoChecks() {
 
 client.once(Events.ClientReady, async () => {
   console.log(`已登录：${client.user.tag}`);
-  console.log("归档面板版本：single-panel-2026-06-19-11");
+  console.log("归档面板版本：single-panel-2026-06-19-12");
   runAutoChecks().catch((error) => console.error("[initial-auto-check]", error));
   setInterval(runAutoChecks, CHECK_INTERVAL_MS);
 });

@@ -8,10 +8,25 @@ const FORUM_CHANNEL_TYPES = new Set([
 ]);
 
 const AUTO_ARCHIVE_BATCH_LIMIT = 100;
+const DISPLAY_TIME_ZONE = process.env.TIME_ZONE ?? "Asia/Hong_Kong";
+
+function getDisplayTimeParts(date = new Date()) {
+  const formatter = new Intl.DateTimeFormat("zh-CN", {
+    hour12: false,
+    timeZone: DISPLAY_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+  return Object.fromEntries(formatter.formatToParts(date).map((part) => [part.type, part.value]));
+}
 
 function formatArchiveLogTime(date = new Date()) {
   return date.toLocaleString("zh-CN", {
     hour12: false,
+    timeZone: DISPLAY_TIME_ZONE,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -21,9 +36,8 @@ function formatArchiveLogTime(date = new Date()) {
 }
 
 function formatArchiveLogTitle(date = new Date()) {
-  const stamp = date.toISOString()
-    .replace(/[-:TZ.]/g, "")
-    .slice(0, 12);
+  const parts = getDisplayTimeParts(date);
+  const stamp = `${parts.year}${parts.month}${parts.day}${parts.hour}${parts.minute}`;
   return `📋 本次归档 - ${stamp}`;
 }
 
@@ -302,6 +316,10 @@ export async function runAutoArchiveCheck(guild, config) {
     config,
     buildAutoArchiveLog(results.length, config.archiveDays, archivedAt)
   ).catch(() => null);
+
+  console.info(
+    `[auto-archive-done] guild=${guild.id} archived=${results.length} failed=${failures.length} days=${config.archiveDays}`
+  );
 
   return {
     archived: true,
