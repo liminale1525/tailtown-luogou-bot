@@ -15,11 +15,7 @@ import {
 } from "discord.js";
 import { CHECK_INTERVAL_MS } from "./defaultConfig.js";
 import { getGuildConfig, updateGuildConfig } from "./configStore.js";
-import {
-  getActiveThreadsForForums,
-  getManagedForumChannels,
-  runAutoArchiveCheck
-} from "./archiveService.js";
+import { runAutoArchiveCheck } from "./archiveService.js";
 
 const { DISCORD_TOKEN, ARCHIVE_LOG_CHANNEL_ID } = process.env;
 const DISPLAY_TIME_ZONE = process.env.TIME_ZONE ?? "Asia/Hong_Kong";
@@ -129,20 +125,6 @@ async function normalizeConfig(guildId) {
   return config;
 }
 
-async function refreshActiveThreadCount(guild) {
-  const config = await normalizeConfig(guild.id);
-  const forumChannels = await getManagedForumChannels(guild, config);
-  const activeThreads = await getActiveThreadsForForums(forumChannels);
-
-  await updateGuildConfig(guild.id, (current) => ({
-    ...current,
-    lastActiveThreadCount: activeThreads.length,
-    lastActiveThreadCountAt: new Date().toISOString()
-  }));
-
-  return activeThreads.length;
-}
-
 async function getWhitelistEntries(guild, threadIds) {
   const entries = [];
 
@@ -189,18 +171,11 @@ async function buildWhitelistReply(guild, notice = null) {
   };
 }
 
-async function buildPanel(guild, notice = null, options = {}) {
+async function buildPanel(guild, notice = null) {
   let config = await normalizeConfig(guild.id);
-  let activeThreadCount = config.lastActiveThreadCount;
-
-  if (options.refreshActiveCount) {
-    activeThreadCount = await refreshActiveThreadCount(guild);
-    config = await normalizeConfig(guild.id);
-  }
 
   const content = [
     `# 📁 自动归档处${notice ? `\n${notice}` : ""}`,
-    `活跃帖：${activeThreadCount ?? "读取中"}`,
     `白名单：${config.whitelistedThreadIds.length} 个帖子`,
     `上次归档：${formatDate(config.lastAutoArchiveAt)}`
   ].join("\n");
@@ -271,7 +246,7 @@ async function handleArchiveCommand(interaction) {
     content: "# 📁 自动归档处\n正在读取状态...",
     flags: MessageFlags.Ephemeral
   });
-  const panel = await buildPanel(interaction.guild, null, { refreshActiveCount: true });
+  const panel = await buildPanel(interaction.guild);
   await interaction.editReply(panel);
 }
 
@@ -335,12 +310,11 @@ async function handleArchiveComponent(interaction) {
     return;
   }
 
-  const refreshActiveCount = interaction.customId === "archive:refresh";
-  if (refreshActiveCount) {
+  if (interaction.customId === "archive:refresh") {
     notice = "状态已刷新";
   }
 
-  const panel = await buildPanel(guild, notice, { refreshActiveCount });
+  const panel = await buildPanel(guild, notice);
   await interaction.editReply(panel);
 }
 
@@ -379,7 +353,11 @@ async function runAutoChecks() {
       continue;
     }
 
-    await runAutoArchiveCheck(guild, config).catch((error) => {
+    await runAutoArchiveCheck(guild, config).then((result) => {
+      console.info(
+        `[auto-check-done] guild=${guild.id} archived=${result.archived} count=${result.count ?? 0} failed=${result.failedCount ?? 0} active=${result.activeCount ?? 0} reason="${result.reason ?? "ok"}"`
+      );
+    }).catch((error) => {
       console.error(`[auto-check] ${guild.id}`, error);
     });
   }
@@ -387,7 +365,7 @@ async function runAutoChecks() {
 
 client.once(Events.ClientReady, async () => {
   console.log(`已登录：${client.user.tag}`);
-  console.log("归档面板版本：single-panel-2026-06-19-12");
+  console.log("归档面板版本：single-panel-2026-06-19-13");
   runAutoChecks().catch((error) => console.error("[initial-auto-check]", error));
   setInterval(runAutoChecks, CHECK_INTERVAL_MS);
 });
