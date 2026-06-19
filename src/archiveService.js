@@ -1,4 +1,4 @@
-import { ChannelFlagsBitField, ChannelType, SnowflakeUtil } from "discord.js";
+import { ChannelFlagsBitField, ChannelType, PermissionFlagsBits, SnowflakeUtil } from "discord.js";
 import { updateGuildConfig } from "./configStore.js";
 import { sendArchiveLog } from "./logging.js";
 
@@ -61,6 +61,22 @@ function getThreadLastActivityAt(thread) {
 
 function isPinnedThread(thread) {
   return thread.flags?.has(ChannelFlagsBitField.Flags.Pinned) ?? false;
+}
+
+function getPermissionSnapshot(guild, thread) {
+  const me = guild.members.me;
+  const parent = thread.parent;
+  const parentPermissions = parent && me ? parent.permissionsFor(me) : null;
+  const threadPermissions = me ? thread.permissionsFor(me) : null;
+
+  return {
+    parentId: thread.parentId,
+    parentName: parent?.name ?? "unknown-parent",
+    parentViewChannel: parentPermissions?.has(PermissionFlagsBits.ViewChannel) ?? false,
+    parentManageThreads: parentPermissions?.has(PermissionFlagsBits.ManageThreads) ?? false,
+    threadViewChannel: threadPermissions?.has(PermissionFlagsBits.ViewChannel) ?? false,
+    threadManageThreads: threadPermissions?.has(PermissionFlagsBits.ManageThreads) ?? false
+  };
 }
 
 function canArchiveThread(thread, config, days) {
@@ -240,14 +256,27 @@ export async function runAutoArchiveCheck(guild, config) {
       await item.thread.setArchived(true, `自动归档：超过 ${config.archiveDays} 天未活跃`);
       results.push(item.thread);
     } catch (error) {
+      const permissions = getPermissionSnapshot(guild, item.thread);
       failures.push({
         threadId: item.thread.id,
         name: item.thread.name,
+        ...permissions,
         code: error.code,
         message: error.message
       });
       console.warn(
-        `[auto-archive-skip] ${item.thread.id} ${item.thread.name} ${error.code ?? ""} ${error.message}`
+        [
+          `[auto-archive-skip] thread=${item.thread.id}`,
+          `name="${item.thread.name}"`,
+          `parent=${permissions.parentId}`,
+          `parentName="${permissions.parentName}"`,
+          `parentView=${permissions.parentViewChannel}`,
+          `parentManageThreads=${permissions.parentManageThreads}`,
+          `threadView=${permissions.threadViewChannel}`,
+          `threadManageThreads=${permissions.threadManageThreads}`,
+          `error=${error.code ?? ""}`,
+          error.message
+        ].join(" ")
       );
     }
   }
