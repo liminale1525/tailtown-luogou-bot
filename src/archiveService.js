@@ -41,7 +41,118 @@ function formatArchiveLogTitle(date = new Date()) {
   return `📋 本次归档 - ${stamp}`;
 }
 
-function buildAutoArchiveLog(archivedThreads, archiveDays, archivedAt = new Date()) {
+function truncateOptionLabel(value) {
+  return value.length > 95 ? `${value.slice(0, 94)}…` : value;
+}
+
+function buildArchiveBatch(archivedThreads, archiveDays, archivedAt = new Date()) {
+  const parts = getDisplayTimeParts(archivedAt);
+  const id = `${parts.year}${parts.month}${parts.day}${parts.hour}${parts.minute}`;
+  const channelMap = new Map();
+
+  for (const thread of archivedThreads) {
+    const channelId = thread.parentId ?? "unknown";
+    const channelName = thread.parent?.name ?? "未知频道";
+    const current = channelMap.get(channelId) ?? {
+      id: channelId,
+      name: channelName,
+      count: 0,
+      threads: []
+    };
+
+    current.count += 1;
+    current.threads.push({
+      id: thread.id,
+      name: thread.name
+    });
+    channelMap.set(channelId, current);
+  }
+
+  return {
+    id,
+    archiveDays,
+    archivedAt: archivedAt.toISOString(),
+    total: archivedThreads.length,
+    channels: [...channelMap.values()].sort((a, b) => b.count - a.count)
+  };
+}
+
+function buildAutoArchiveLog(batch) {
+  const archivedAt = new Date(batch.archivedAt);
+  const channelLines = batch.channels.slice(0, 20).map((channel) => (
+    `✅ ${channel.name} - 归档 ${channel.count}`
+  ));
+  const hiddenChannelCount = Math.max(0, batch.channels.length - channelLines.length);
+
+  const components = batch.channels.length > 0
+    ? [
+      {
+        type: 1,
+        components: [
+          {
+            type: 3,
+            custom_id: `archive:batch:${batch.id}`,
+            placeholder: "选择频道查看归档帖子",
+            options: batch.channels.slice(0, 25).map((channel) => ({
+              label: truncateOptionLabel(channel.name),
+              value: channel.id,
+              description: `归档 ${channel.count} 个帖子`
+            }))
+          }
+        ]
+      }
+    ]
+    : [];
+
+  return {
+    embeds: [
+      {
+        color: 0x57f287,
+        title: "📦 自动归档完成",
+        description: [
+          `执行批次：${batch.id}`,
+          `不活跃阈值：${batch.archiveDays} 天`,
+          `已归档：${batch.total}`,
+          `失败：0`,
+          `不活跃帖子总数：${batch.total}`,
+          "",
+          "**各频道详情：**",
+          channelLines.join("\n") || "无",
+          hiddenChannelCount > 0 ? `还有 ${hiddenChannelCount} 个频道未显示。` : null,
+          "",
+          formatArchiveLogTime(archivedAt)
+        ].filter(Boolean).join("\n")
+      }
+    ],
+    components,
+    allowedMentions: {
+      parse: []
+    }
+  };
+}
+
+export function buildArchiveBatchChannelReply(batch, channelId) {
+  const channel = batch.channels.find((item) => item.id === channelId);
+  if (!channel) {
+    return {
+      content: "没有找到这个批次的频道记录。",
+      allowedMentions: { parse: [] }
+    };
+  }
+
+  const lines = channel.threads.map((thread, index) => `${index + 1}. <#${thread.id}>`);
+  return {
+    content: [
+      `**${channel.name} - 本次归档 ${channel.count} 个帖子**`,
+      lines.join("\n") || "无"
+    ].join("\n"),
+    allowedMentions: {
+      parse: []
+    }
+  };
+}
+
+function buildLegacyAutoArchiveLog(archivedThreads, archiveDays, archivedAt = new Date()) {
   const count = archivedThreads.length;
   const visibleThreads = archivedThreads.slice(0, 20);
   const hiddenCount = Math.max(0, archivedThreads.length - visibleThreads.length);
@@ -319,16 +430,21 @@ export async function runAutoArchiveCheck(guild, config) {
   }
 
   const archivedAt = new Date();
+  const batch = buildArchiveBatch(results, config.archiveDays, archivedAt);
 
   await updateGuildConfig(guild.id, (current) => ({
     ...current,
-    lastAutoArchiveAt: archivedAt.toISOString()
+    lastAutoArchiveAt: archivedAt.toISOString(),
+    archiveBatches: {
+      ...(current.archiveBatches ?? {}),
+      [batch.id]: batch
+    }
   }));
 
   await sendArchiveLog(
     guild,
     config,
-    buildAutoArchiveLog(results, config.archiveDays, archivedAt)
+    buildAutoArchiveLog(batch)
   ).catch(() => null);
 
   console.info(

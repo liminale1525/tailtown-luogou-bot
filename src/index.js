@@ -15,7 +15,10 @@ import {
 } from "discord.js";
 import { CHECK_INTERVAL_MS } from "./defaultConfig.js";
 import { getGuildConfig, updateGuildConfig } from "./configStore.js";
-import { runAutoArchiveCheck } from "./archiveService.js";
+import {
+  buildArchiveBatchChannelReply,
+  runAutoArchiveCheck
+} from "./archiveService.js";
 
 const { DISCORD_TOKEN, ARCHIVE_LOG_CHANNEL_ID } = process.env;
 const DISPLAY_TIME_ZONE = process.env.TIME_ZONE ?? "Asia/Hong_Kong";
@@ -38,7 +41,7 @@ const INTERVAL_OPTIONS = [
   { label: "3小时", value: 180 },
   { label: "1小时", value: 60 },
   { label: "半小时", value: 30 },
-  { label: "3分钟（测试）", value: 3 }
+  { label: "3分钟测试", value: 3 }
 ];
 
 function formatDate(value) {
@@ -161,9 +164,10 @@ async function buildWhitelistReply(guild, notice = null) {
           .setCustomId("archive:whitelist:remove")
           .setPlaceholder("移除被保护帖子")
           .addOptions(
-            entries.map((entry) => ({
-              label: `${truncateLabel(entry.name)} ❌`,
-              value: entry.id
+            entries.map((entry, index) => ({
+              label: `${index + 1} 移除 ❌`,
+              value: entry.id,
+              description: truncateLabel(entry.name)
             }))
           )
       )
@@ -255,6 +259,22 @@ async function handleArchiveComponent(interaction) {
 
   const guild = interaction.guild;
   let notice = "设置已更新";
+
+  if (interaction.customId.startsWith("archive:batch:")) {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const batchId = interaction.customId.split(":").at(-1);
+    const channelId = interaction.values[0];
+    const config = await normalizeConfig(guild.id);
+    const batch = config.archiveBatches?.[batchId];
+
+    if (!batch) {
+      await interaction.editReply("没有找到这个归档批次，可能是记录已被清理或 Bot 更换过数据文件。");
+      return;
+    }
+
+    await interaction.editReply(buildArchiveBatchChannelReply(batch, channelId));
+    return;
+  }
 
   if (interaction.customId === "archive:whitelist:list") {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });

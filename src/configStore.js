@@ -15,7 +15,8 @@ function mergeGuildConfig(config) {
     ...config,
     excludedChannelIds: config?.excludedChannelIds ?? [],
     whitelistedThreadIds: config?.whitelistedThreadIds ?? [],
-    jobs: config?.jobs ?? {}
+    jobs: config?.jobs ?? {},
+    archiveBatches: config?.archiveBatches ?? {}
   };
 }
 
