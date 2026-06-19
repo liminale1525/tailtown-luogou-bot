@@ -80,7 +80,7 @@ function buildArchiveBatch(archivedThreads, archiveDays, archivedAt = new Date()
 function buildAutoArchiveLog(batch) {
   const archivedAt = new Date(batch.archivedAt);
   const channelLines = batch.channels.slice(0, 20).map((channel) => (
-    `✅ ${channel.name} - 归档 ${channel.count}`
+    `- ${channel.name}：${channel.count} 个`
   ));
   const hiddenChannelCount = Math.max(0, batch.channels.length - channelLines.length);
 
@@ -92,7 +92,7 @@ function buildAutoArchiveLog(batch) {
           {
             type: 3,
             custom_id: `archive:batch:${batch.id}`,
-            placeholder: "选择频道查看归档帖子",
+            placeholder: "选择频道查看本次归档清单",
             options: batch.channels.slice(0, 25).map((channel) => ({
               label: truncateOptionLabel(channel.name),
               value: channel.id,
@@ -108,19 +108,15 @@ function buildAutoArchiveLog(batch) {
     embeds: [
       {
         color: 0x57f287,
-        title: "📦 自动归档完成",
+        title: `📁 本次归档 - ${batch.id}`,
         description: [
-          `执行批次：${batch.id}`,
-          `不活跃阈值：${batch.archiveDays} 天`,
-          `已归档：${batch.total}`,
-          `失败：0`,
-          `不活跃帖子总数：${batch.total}`,
+          `本次归档数量：${batch.total} 个帖子`,
+          `归档规则：${batch.archiveDays} 天未活跃`,
+          `归档时间：${formatArchiveLogTime(archivedAt)}`,
           "",
-          "**各频道详情：**",
+          "**本次归档清单**",
           channelLines.join("\n") || "无",
-          hiddenChannelCount > 0 ? `还有 ${hiddenChannelCount} 个频道未显示。` : null,
-          "",
-          formatArchiveLogTime(archivedAt)
+          hiddenChannelCount > 0 ? `还有 ${hiddenChannelCount} 个频道未显示。` : null
         ].filter(Boolean).join("\n")
       }
     ],
@@ -143,7 +139,7 @@ export function buildArchiveBatchChannelReply(batch, channelId) {
   const lines = channel.threads.map((thread, index) => `${index + 1}. <#${thread.id}>`);
   return {
     content: [
-      `**${channel.name} - 本次归档 ${channel.count} 个帖子**`,
+      `**📁 ${channel.name} - 本次归档清单**`,
       lines.join("\n") || "无"
     ].join("\n"),
     allowedMentions: {
