@@ -1,0 +1,19 @@
+{
+  "name": "tail-town-archive-bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Tail Town Discord forum archive assistant with Chinese slash commands.",
+  "scripts": {
+    "start": "node src/index.js",
+    "register": "node src/register-commands.js",
+    "check": "node src/check-setup.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.18.0",
+    "dotenv": "^16.4.7"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
