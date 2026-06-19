@@ -234,9 +234,31 @@ export async function runAutoArchiveCheck(guild, config) {
   }
 
   const results = [];
+  const failures = [];
   for (const item of archivable) {
-    await item.thread.setArchived(true, `自动归档：超过 ${config.archiveDays} 天未活跃`);
-    results.push(item.thread);
+    try {
+      await item.thread.setArchived(true, `自动归档：超过 ${config.archiveDays} 天未活跃`);
+      results.push(item.thread);
+    } catch (error) {
+      failures.push({
+        threadId: item.thread.id,
+        name: item.thread.name,
+        code: error.code,
+        message: error.message
+      });
+      console.warn(
+        `[auto-archive-skip] ${item.thread.id} ${item.thread.name} ${error.code ?? ""} ${error.message}`
+      );
+    }
+  }
+
+  if (results.length === 0) {
+    return {
+      archived: false,
+      reason: failures.length > 0 ? "符合条件的帖子均因权限或访问问题跳过" : "没有成功归档的帖子",
+      activeCount: activeThreads.length,
+      failedCount: failures.length
+    };
   }
 
   const archivedAt = new Date();
@@ -255,6 +277,7 @@ export async function runAutoArchiveCheck(guild, config) {
   return {
     archived: true,
     activeCount: activeThreads.length,
-    count: results.length
+    count: results.length,
+    failedCount: failures.length
   };
 }
