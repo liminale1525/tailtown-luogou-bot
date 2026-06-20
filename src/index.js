@@ -45,21 +45,15 @@ const INTERVAL_OPTIONS = [
 ];
 
 const ARCHIVE_DAY_OPTIONS = [
-  { label: "30天", value: "days:30", days: 30, mode: "days" },
-  { label: "15天", value: "days:15", days: 15, mode: "days" },
-  { label: "7天", value: "days:7", days: 7, mode: "days" },
-  { label: "3天", value: "days:3", days: 3, mode: "days" },
-  { label: "全量归档", value: "full", days: 7, mode: "full" }
+  { label: "30天", value: "days:30", days: 30 },
+  { label: "15天", value: "days:15", days: 15 },
+  { label: "7天", value: "days:7", days: 7 },
+  { label: "5天", value: "days:5", days: 5 },
+  { label: "3天", value: "days:3", days: 3 }
 ];
 
 function getArchiveDayOption(config) {
-  if (config.archiveMode === "full") {
-    return ARCHIVE_DAY_OPTIONS.find((option) => option.mode === "full");
-  }
-
-  return ARCHIVE_DAY_OPTIONS.find((option) => (
-    option.mode === "days" && option.days === config.archiveDays
-  )) ?? ARCHIVE_DAY_OPTIONS[1];
+  return ARCHIVE_DAY_OPTIONS.find((option) => option.days === config.archiveDays) ?? ARCHIVE_DAY_OPTIONS[1];
 }
 
 function formatDate(value) {
@@ -141,6 +135,26 @@ async function normalizeConfig(guildId) {
       ...current,
       checkIntervalMinutes: 120
     }));
+  }
+
+  if (config.archiveMode === "full") {
+    config = await updateGuildConfig(guildId, (current) => {
+      const { archiveMode, ...rest } = current;
+      return {
+        ...rest,
+        archiveDays: 5
+      };
+    });
+  }
+
+  if (config.archiveMode) {
+    config = await updateGuildConfig(guildId, (current) => {
+      const { archiveMode, ...rest } = current;
+      return {
+        ...rest,
+        archiveDays: current.archiveDays
+      };
+    });
   }
 
   return config;
@@ -325,14 +339,14 @@ async function handleArchiveComponent(interaction) {
     if (!selected) {
       notice = "没有识别到这个归档选项";
     } else {
-      await updateGuildConfig(guild.id, (current) => ({
-        ...current,
-        archiveMode: selected.mode,
-        archiveDays: selected.days
-      }));
-      notice = selected.mode === "full"
-        ? "归档周期已改为全量归档"
-        : `归档周期已改为 ${selected.days} 天`;
+      await updateGuildConfig(guild.id, (current) => {
+        const { archiveMode, ...rest } = current;
+        return {
+          ...rest,
+          archiveDays: selected.days
+        };
+      });
+      notice = `归档周期已改为 ${selected.days} 天`;
     }
   }
 

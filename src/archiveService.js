@@ -46,18 +46,14 @@ function truncateOptionLabel(value) {
 }
 
 function getArchiveRuleLabel(source) {
-  return source.archiveMode === "full"
-    ? "全量归档（30/15/7天）"
-    : `${source.archiveDays} 天未活跃`;
+  return `${source.archiveDays} 天未活跃`;
 }
 
 function getArchiveReasonLabel(config) {
-  return config.archiveMode === "full"
-    ? "全量归档（超过 7 天未活跃）"
-    : `超过 ${config.archiveDays} 天未活跃`;
+  return `超过 ${config.archiveDays} 天未活跃`;
 }
 
-function buildArchiveBatch(archivedThreads, archiveDays, archivedAt = new Date(), archiveMode = "days") {
+function buildArchiveBatch(archivedThreads, archiveDays, archivedAt = new Date()) {
   const parts = getDisplayTimeParts(archivedAt);
   const id = `${parts.year}${parts.month}${parts.day}${parts.hour}${parts.minute}`;
   const channelMap = new Map();
@@ -82,7 +78,6 @@ function buildArchiveBatch(archivedThreads, archiveDays, archivedAt = new Date()
 
   return {
     id,
-    archiveMode,
     archiveDays,
     archivedAt: archivedAt.toISOString(),
     total: archivedThreads.length,
@@ -439,7 +434,7 @@ export async function runAutoArchiveCheck(guild, config) {
   }
 
   const archivedAt = new Date();
-  const batch = buildArchiveBatch(results, config.archiveDays, archivedAt, config.archiveMode);
+  const batch = buildArchiveBatch(results, config.archiveDays, archivedAt);
 
   await updateGuildConfig(guild.id, (current) => ({
     ...current,
@@ -457,7 +452,7 @@ export async function runAutoArchiveCheck(guild, config) {
   ).catch(() => null);
 
   console.info(
-    `[auto-archive-done] guild=${guild.id} archived=${results.length} failed=${failures.length} mode=${config.archiveMode ?? "days"} days=${config.archiveDays}`
+    `[auto-archive-done] guild=${guild.id} archived=${results.length} failed=${failures.length} days=${config.archiveDays}`
   );
 
   return {
