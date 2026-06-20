@@ -44,6 +44,24 @@ const INTERVAL_OPTIONS = [
   { label: "3分钟测试", value: 3 }
 ];
 
+const ARCHIVE_DAY_OPTIONS = [
+  { label: "30天", value: "days:30", days: 30, mode: "days" },
+  { label: "15天", value: "days:15", days: 15, mode: "days" },
+  { label: "7天", value: "days:7", days: 7, mode: "days" },
+  { label: "3天", value: "days:3", days: 3, mode: "days" },
+  { label: "全量归档", value: "full", days: 7, mode: "full" }
+];
+
+function getArchiveDayOption(config) {
+  if (config.archiveMode === "full") {
+    return ARCHIVE_DAY_OPTIONS.find((option) => option.mode === "full");
+  }
+
+  return ARCHIVE_DAY_OPTIONS.find((option) => (
+    option.mode === "days" && option.days === config.archiveDays
+  )) ?? ARCHIVE_DAY_OPTIONS[1];
+}
+
 function formatDate(value) {
   if (!value) {
     return "暂无";
@@ -177,6 +195,7 @@ async function buildWhitelistReply(guild, notice = null) {
 
 async function buildPanel(guild, notice = null) {
   let config = await normalizeConfig(guild.id);
+  const archiveDayOption = getArchiveDayOption(config);
 
   const content = [
     `# 📁 自动归档处${notice ? `\n${notice}` : ""}`,
@@ -203,12 +222,12 @@ async function buildPanel(guild, notice = null) {
   const daysRow = new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder()
       .setCustomId("archive:days")
-      .setPlaceholder(`周期：${config.archiveDays}天`)
+      .setPlaceholder(`周期：${archiveDayOption.label}`)
       .addOptions(
-        [3, 7, 15, 30].map((days) => ({
-          label: `${days}天`,
-          value: String(days),
-          default: config.archiveDays === days
+        ARCHIVE_DAY_OPTIONS.map((option) => ({
+          label: option.label,
+          value: option.value,
+          default: option.value === archiveDayOption.value
         }))
       )
   );
@@ -302,12 +321,19 @@ async function handleArchiveComponent(interaction) {
   }
 
   if (interaction.customId === "archive:days") {
-    const archiveDays = Number(interaction.values[0]);
-    await updateGuildConfig(guild.id, (current) => ({
-      ...current,
-      archiveDays
-    }));
-    notice = `归档周期已改为 ${archiveDays} 天`;
+    const selected = ARCHIVE_DAY_OPTIONS.find((option) => option.value === interaction.values[0]);
+    if (!selected) {
+      notice = "没有识别到这个归档选项";
+    } else {
+      await updateGuildConfig(guild.id, (current) => ({
+        ...current,
+        archiveMode: selected.mode,
+        archiveDays: selected.days
+      }));
+      notice = selected.mode === "full"
+        ? "归档周期已改为全量归档"
+        : `归档周期已改为 ${selected.days} 天`;
+    }
   }
 
   if (interaction.customId === "archive:interval") {

@@ -45,7 +45,19 @@ function truncateOptionLabel(value) {
   return value.length > 95 ? `${value.slice(0, 94)}…` : value;
 }
 
-function buildArchiveBatch(archivedThreads, archiveDays, archivedAt = new Date()) {
+function getArchiveRuleLabel(source) {
+  return source.archiveMode === "full"
+    ? "全量归档（30/15/7天）"
+    : `${source.archiveDays} 天未活跃`;
+}
+
+function getArchiveReasonLabel(config) {
+  return config.archiveMode === "full"
+    ? "全量归档（超过 7 天未活跃）"
+    : `超过 ${config.archiveDays} 天未活跃`;
+}
+
+function buildArchiveBatch(archivedThreads, archiveDays, archivedAt = new Date(), archiveMode = "days") {
   const parts = getDisplayTimeParts(archivedAt);
   const id = `${parts.year}${parts.month}${parts.day}${parts.hour}${parts.minute}`;
   const channelMap = new Map();
@@ -70,6 +82,7 @@ function buildArchiveBatch(archivedThreads, archiveDays, archivedAt = new Date()
 
   return {
     id,
+    archiveMode,
     archiveDays,
     archivedAt: archivedAt.toISOString(),
     total: archivedThreads.length,
@@ -111,7 +124,7 @@ function buildAutoArchiveLog(batch) {
         title: `📁 本次归档 - ${batch.id}`,
         description: [
           `本次归档数量：${batch.total} 个帖子`,
-          `归档规则：${batch.archiveDays} 天未活跃`,
+          `归档规则：${getArchiveRuleLabel(batch)}`,
           `归档时间：${formatArchiveLogTime(archivedAt)}`,
           "",
           "**本次归档清单**",
@@ -388,7 +401,7 @@ export async function runAutoArchiveCheck(guild, config) {
   const failures = [];
   for (const item of archivable) {
     try {
-      await item.thread.setArchived(true, `自动归档：超过 ${config.archiveDays} 天未活跃`);
+      await item.thread.setArchived(true, `自动归档：${getArchiveReasonLabel(config)}`);
       results.push(item.thread);
     } catch (error) {
       const permissions = getPermissionSnapshot(guild, item.thread);
@@ -426,7 +439,7 @@ export async function runAutoArchiveCheck(guild, config) {
   }
 
   const archivedAt = new Date();
-  const batch = buildArchiveBatch(results, config.archiveDays, archivedAt);
+  const batch = buildArchiveBatch(results, config.archiveDays, archivedAt, config.archiveMode);
 
   await updateGuildConfig(guild.id, (current) => ({
     ...current,
@@ -444,7 +457,7 @@ export async function runAutoArchiveCheck(guild, config) {
   ).catch(() => null);
 
   console.info(
-    `[auto-archive-done] guild=${guild.id} archived=${results.length} failed=${failures.length} days=${config.archiveDays}`
+    `[auto-archive-done] guild=${guild.id} archived=${results.length} failed=${failures.length} mode=${config.archiveMode ?? "days"} days=${config.archiveDays}`
   );
 
   return {
